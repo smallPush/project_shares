@@ -1,0 +1,6 @@
+vendor/
+.env
+var/
+phpunit.xml
+.phpunit.result.cache
+test_output*.txt

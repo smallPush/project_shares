@@ -49,13 +49,6 @@ class StockService
             $data['total_value'] = $totalValue;
 
             $results[] = $data;
-
-            // Alpha Vantage Free Tier rate limit: 5 requests per minute.
-            // We sleep for a bit to avoid hitting the limit immediately if many stocks exist.
-            if ($this->apiKey === 'demo' || count($portfolio) > 1) {
-                // USleep for 500ms between calls as a safety measure
-                usleep(500000); 
-            }
         }
 
         return $results;
