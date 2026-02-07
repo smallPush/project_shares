@@ -4,6 +4,7 @@ namespace App\Service;
 
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
+use Symfony\Contracts\HttpClient\ResponseInterface;
 use Psr\Log\LoggerInterface;
 
 class StockService
@@ -32,12 +33,23 @@ class StockService
         }
 
         $results = [];
+        $responses = [];
 
         foreach ($portfolio as $item) {
             $symbol = $item['symbol'];
-            $quantity = $item['quantity'];
+            $responses[] = [
+                'item' => $item,
+                'response' => $this->requestStockData($symbol)
+            ];
+        }
 
-            $data = $this->fetchStockData($symbol);
+        foreach ($responses as $entry) {
+            $item = $entry['item'];
+            $symbol = $item['symbol'];
+            $quantity = $item['quantity'];
+            $response = $entry['response'];
+
+            $data = $this->processStockResponse($symbol, $response);
             
             $totalValue = 0.0;
             if ($data['price'] !== null) {
@@ -49,19 +61,12 @@ class StockService
             $data['total_value'] = $totalValue;
 
             $results[] = $data;
-
-            // Alpha Vantage Free Tier rate limit: 5 requests per minute.
-            // We sleep for a bit to avoid hitting the limit immediately if many stocks exist.
-            if ($this->apiKey === 'demo' || count($portfolio) > 1) {
-                // USleep for 500ms between calls as a safety measure
-                usleep(500000); 
-            }
         }
 
         return $results;
     }
 
-    private function fetchStockData(string $symbol): array
+    private function requestStockData(string $symbol): ResponseInterface
     {
         $url = sprintf(
             'https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=%s&apikey=%s',
@@ -69,8 +74,12 @@ class StockService
             $this->apiKey
         );
         
+        return $this->httpClient->request('GET', $url);
+    }
+
+    private function processStockResponse(string $symbol, ResponseInterface $response): array
+    {
         try {
-            $response = $this->httpClient->request('GET', $url);
             $content = $response->toArray();
 
             if (isset($content['Note'])) {
