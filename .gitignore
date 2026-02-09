@@ -1,5 +1,6 @@
 vendor/
+.env
 var/
-.env.local
-.env.local.php
-.env.*.local
+phpunit.xml
+.phpunit.result.cache
+test_output*.txt
