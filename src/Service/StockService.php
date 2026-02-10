@@ -43,6 +43,7 @@ class StockService
         foreach ($portfolio as $item) {
             $symbol = $item['symbol'];
             $quantity = $item['quantity'];
+            $purchasePrice = $item['purchase_price'] ?? null;
 
             $data = $this->fetchStockData($symbol, $shouldSleep);
             
@@ -51,9 +52,16 @@ class StockService
                 $totalValue = $data['price'] * $quantity;
             }
 
+            $profitability = null;
+            if ($purchasePrice !== null && $data['price'] !== null) {
+                $profitability = $totalValue - ($purchasePrice * $quantity);
+            }
+
             $data['symbol'] = $symbol;
             $data['quantity'] = $quantity;
+            $data['purchase_price'] = $purchasePrice;
             $data['total_value'] = $totalValue;
+            $data['profitability'] = $profitability;
 
             $results[] = $data;
         }
