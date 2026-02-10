@@ -46,10 +46,12 @@
                             <th>Symbol</th>
                             <th class="text-end">Quantity</th>
                             <th class="text-end">Price</th>
+                            <th class="text-end">Purchase Price</th>
                             <th class="text-end">Change (%)</th>
                             <th class="text-end">PER</th>
                             <th class="text-end">Volume</th>
                             <th class="text-end">Total Value</th>
+                            <th class="text-end">Profitability</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -62,6 +64,13 @@
                                         ${{ stock.price|number_format(2) }}
                                     {% else %}
                                         <span class="badge bg-warning text-dark">N/A</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    {% if stock.purchase_price is not null %}
+                                        ${{ stock.purchase_price|number_format(2) }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
                                     {% endif %}
                                 </td>
                                 <td class="text-end">
@@ -83,10 +92,19 @@
                                         <span class="text-muted">-</span>
                                     {% endif %}
                                 </td>
+                                <td class="text-end">
+                                    {% if stock.profitability is not null %}
+                                        <span class="{{ stock.profitability >= 0 ? 'text-success' : 'text-danger' }}">
+                                            {{ stock.profitability >= 0 ? '+' : '' }}${{ stock.profitability|number_format(2) }}
+                                        </span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
                             </tr>
                         {% else %}
                             <tr>
-                                <td colspan="6" class="text-center">No stocks found in portfolio.</td>
+                                <td colspan="8" class="text-center">No stocks found in portfolio.</td>
                             </tr>
                         {% endfor %}
                     </tbody>
