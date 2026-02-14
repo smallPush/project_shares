@@ -47,7 +47,7 @@ class StockServiceTest extends TestCase
         $file = tempnam(sys_get_temp_dir(), 'portfolio');
         file_put_contents($file, json_encode($portfolioData));
 
-        $service = new StockService($httpClient, $file, $logger, $cache, 'demo');
+        $service = new StockService($httpClient, $file, $logger, $cache, 'test_key');
         $result = $service->getPortfolioData();
 
         // Check if profitability is calculated
