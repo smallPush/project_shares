@@ -23,18 +23,34 @@ class StockService
 
     public function getPortfolioData(): array
     {
+        return $this->getPortfolioSummary()['stocks'];
+    }
+
+    /**
+     * Returns both stock data and the grand total of the portfolio.
+     * This avoids redundant iterations when both are needed.
+     */
+    public function getPortfolioSummary(): array
+    {
         if (!file_exists($this->portfolioPath)) {
-            return [];
+            return [
+                'stocks' => [],
+                'grand_total' => 0.0,
+            ];
         }
 
         $json = file_get_contents($this->portfolioPath);
         $portfolio = json_decode($json, true);
 
         if (!is_array($portfolio)) {
-            return [];
+            return [
+                'stocks' => [],
+                'grand_total' => 0.0,
+            ];
         }
 
         $results = [];
+        $grandTotal = 0.0;
 
         // Alpha Vantage Free Tier rate limit: 5 requests per minute.
         // We determine if we need to sleep to avoid hitting the limit.
@@ -64,9 +80,13 @@ class StockService
             $data['profitability'] = $profitability;
 
             $results[] = $data;
+            $grandTotal += $totalValue;
         }
 
-        return $results;
+        return [
+            'stocks' => $results,
+            'grand_total' => $grandTotal,
+        ];
     }
 
     private function fetchStockData(string $symbol, bool $shouldSleep = false): array
