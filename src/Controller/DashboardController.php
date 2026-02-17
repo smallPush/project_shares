@@ -12,13 +12,9 @@ class DashboardController extends AbstractController
     #[Route('/', name: 'app_dashboard')]
     public function index(StockService $stockService): Response
     {
-        $stocks = $stockService->getPortfolioData();
-
-        // Calculate grand total of the portfolio
-        $grandTotal = 0.0;
-        foreach ($stocks as $stock) {
-            $grandTotal += $stock['total_value'];
-        }
+        $portfolioData = $stockService->getPortfolioSummary();
+        $stocks = $portfolioData['stocks'];
+        $grandTotal = $portfolioData['grand_total'];
 
         return $this->render('dashboard.html.twig', [
             'stocks' => $stocks,

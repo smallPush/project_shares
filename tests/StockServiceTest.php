@@ -47,19 +47,28 @@ class StockServiceTest extends TestCase
         $file = tempnam(sys_get_temp_dir(), 'portfolio');
         file_put_contents($file, json_encode($portfolioData));
 
-        $service = new StockService($httpClient, $file, $logger, $cache, 'test_key');
-        $result = $service->getPortfolioData();
+        $service = new StockService($httpClient, $file, $logger, $cache, 'demo');
+        $result = $service->getPortfolioSummary();
 
         // Check if profitability is calculated
-        $this->assertCount(1, $result);
-        $item = $result[0];
+        $this->assertArrayHasKey('stocks', $result);
+        $this->assertArrayHasKey('grand_total', $result);
+        $this->assertCount(1, $result['stocks']);
+
+        $item = $result['stocks'][0];
 
         $this->assertEquals(200.00, $item['price']);
         $this->assertEquals(2000.00, $item['total_value']);
+        $this->assertEquals(2000.00, $result['grand_total']);
 
         // Expected profitability: (200 - 150) * 10 = 500
         $this->assertArrayHasKey('profitability', $item);
         $this->assertEquals(500.00, $item['profitability']);
+
+        // Verify backward compatibility of getPortfolioData()
+        $legacyResult = $service->getPortfolioData();
+        $this->assertCount(1, $legacyResult);
+        $this->assertEquals('IBM', $legacyResult[0]['symbol']);
 
         // Cleanup
         unlink($file);
