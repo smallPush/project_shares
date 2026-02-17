@@ -17,7 +17,7 @@ class StockService
         private LoggerInterface $logger,
         private CacheInterface $cache,
         #[Autowire(env: 'ALPHA_VANTAGE_KEY')]
-        private string $apiKey = 'demo'
+        private string $apiKey
     ) {
     }
 
