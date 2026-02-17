@@ -1,0 +1,40 @@
+[Tue Feb 10 12:27:21 2026] PHP 8.3.6 Development Server (http://localhost:8000) started
+[Tue Feb 10 12:27:33 2026] [::1]:33698 Accepted
+[Tue Feb 10 12:27:35 2026] [::1]:33698 [500]: GET /
+[Tue Feb 10 12:27:35 2026] [::1]:33698 Closing
+[Tue Feb 10 12:27:35 2026] [::1]:33706 Accepted
+[Tue Feb 10 12:27:35 2026] [::1]:33706 [200]: GET /_wdt/styles
+[Tue Feb 10 12:27:35 2026] [::1]:33706 Closing
+[Tue Feb 10 12:27:35 2026] [::1]:33714 Accepted
+[Tue Feb 10 12:27:36 2026] [::1]:33714 [200]: GET /_wdt/ec1611?XDEBUG_IGNORE=1
+[Tue Feb 10 12:27:36 2026] [::1]:33714 Closing
+[Tue Feb 10 12:28:50 2026] [::1]:35506 Accepted
+[Tue Feb 10 12:28:50 2026] [::1]:35506 [200]: GET /
+[Tue Feb 10 12:28:50 2026] [::1]:35506 Closing
+[Tue Feb 10 12:28:50 2026] [::1]:35508 Accepted
+[Tue Feb 10 12:28:50 2026] [::1]:35508 [404]: GET /assets/styles/app-cT2YKNc.css - No such file or directory
+[Tue Feb 10 12:28:50 2026] [::1]:35508 Closing
+[Tue Feb 10 12:28:50 2026] [::1]:35516 Accepted
+[Tue Feb 10 12:28:50 2026] [::1]:35524 Accepted
+[Tue Feb 10 12:28:50 2026] [::1]:35538 Accepted
+[Tue Feb 10 12:28:50 2026] [::1]:35548 Accepted
+[Tue Feb 10 12:28:50 2026] [::1]:35550 Accepted
+[Tue Feb 10 12:28:50 2026] [::1]:35566 Accepted
+[Tue Feb 10 12:28:50 2026] [::1]:35550 [200]: GET /_wdt/styles
+[Tue Feb 10 12:28:50 2026] [::1]:35550 Closing
+[Tue Feb 10 12:28:50 2026] [::1]:35516 [404]: GET /assets/app-TNXHCQF.js - No such file or directory
+[Tue Feb 10 12:28:50 2026] [::1]:35524 [404]: GET /assets/stimulus_bootstrap-xCO4u8H.js - No such file or directory
+[Tue Feb 10 12:28:50 2026] [::1]:35538 [404]: GET /assets/@symfony/stimulus-bundle/loader-V1GtHuK.js - No such file or directory
+[Tue Feb 10 12:28:50 2026] [::1]:35548 [404]: GET /assets/@symfony/stimulus-bundle/controllers-qoRywO9.js - No such file or directory
+[Tue Feb 10 12:28:50 2026] [::1]:35566 [404]: GET /assets/@symfony/ux-turbo/turbo_controller-8wQNi2p.js - No such file or directory
+[Tue Feb 10 12:28:50 2026] [::1]:35516 Closing
+[Tue Feb 10 12:28:50 2026] [::1]:35524 Closing
+[Tue Feb 10 12:28:50 2026] [::1]:35538 Closing
+[Tue Feb 10 12:28:50 2026] [::1]:35548 Closing
+[Tue Feb 10 12:28:50 2026] [::1]:35566 Closing
+[Tue Feb 10 12:28:50 2026] [::1]:35582 Accepted
+[Tue Feb 10 12:28:50 2026] [::1]:35582 [404]: GET /assets/controllers/hello_controller-VYgvytJ.js - No such file or directory
+[Tue Feb 10 12:28:50 2026] [::1]:35582 Closing
+[Tue Feb 10 12:28:50 2026] [::1]:35586 Accepted
+[Tue Feb 10 12:28:50 2026] [::1]:35586 [200]: GET /_wdt/36d8c4?XDEBUG_IGNORE=1
+[Tue Feb 10 12:28:50 2026] [::1]:35586 Closing

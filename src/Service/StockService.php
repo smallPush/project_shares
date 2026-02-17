@@ -18,25 +18,41 @@ class StockService
         private LoggerInterface $logger,
         private CacheInterface $cache,
         #[Autowire(env: 'ALPHA_VANTAGE_KEY')]
-        private string $apiKey = 'demo'
+        private string $apiKey
     ) {
     }
 
     public function getPortfolioData(): array
     {
+        return $this->getPortfolioSummary()['stocks'];
+    }
+
+    /**
+     * Returns both stock data and the grand total of the portfolio.
+     * This avoids redundant iterations when both are needed.
+     */
+    public function getPortfolioSummary(): array
+    {
         if (!file_exists($this->portfolioPath)) {
-            return [];
+            return [
+                'stocks' => [],
+                'grand_total' => 0.0,
+            ];
         }
 
         $json = file_get_contents($this->portfolioPath);
         $portfolio = json_decode($json, true);
 
         if (!is_array($portfolio)) {
-            return [];
+            return [
+                'stocks' => [],
+                'grand_total' => 0.0,
+            ];
         }
 
         $results = [];
         $responses = [];
+        $grandTotal = 0.0;
 
         // Alpha Vantage Free Tier rate limit: 5 requests per minute.
         // We determine if we need to sleep to avoid hitting the limit.
@@ -55,6 +71,7 @@ class StockService
             $symbol = $item['symbol'];
             $quantity = $item['quantity'];
             $response = $entry['response'];
+            $purchasePrice = $item['purchase_price'] ?? null;
 
             $data = $this->processStockResponse($symbol, $response);
             $data = $this->fetchStockData($symbol, $shouldSleep);
@@ -64,14 +81,25 @@ class StockService
                 $totalValue = $data['price'] * $quantity;
             }
 
+            $profitability = null;
+            if ($purchasePrice !== null && $data['price'] !== null) {
+                $profitability = $totalValue - ($purchasePrice * $quantity);
+            }
+
             $data['symbol'] = $symbol;
             $data['quantity'] = $quantity;
+            $data['purchase_price'] = $purchasePrice;
             $data['total_value'] = $totalValue;
+            $data['profitability'] = $profitability;
 
             $results[] = $data;
+            $grandTotal += $totalValue;
         }
 
-        return $results;
+        return [
+            'stocks' => $results,
+            'grand_total' => $grandTotal,
+        ];
     }
 
     private function requestStockData(string $symbol): ResponseInterface
