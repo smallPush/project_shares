@@ -4,3 +4,4 @@ var/
 phpunit.xml
 .phpunit.result.cache
 test_output*.txt
+.phpunit.cache
