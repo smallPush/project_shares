@@ -64,7 +64,7 @@ class StockService
             $purchasePrice = $item['purchase_price'] ?? null;
 
             $data = $this->fetchStockData($symbol, $shouldSleep);
-            
+
             $totalValue = 0.0;
             if ($data['price'] !== null) {
                 $totalValue = $data['price'] * $quantity;
@@ -131,7 +131,8 @@ class StockService
                 return $result;
 
             } catch (\Exception $e) {
-                $this->logger->error(sprintf('Alpha Vantage Error (%s): %s', $symbol, $e->getMessage()));
+                $errorMessage = str_replace($this->apiKey, '***', $e->getMessage());
+                $this->logger->error(sprintf('Alpha Vantage Error (%s): %s', $symbol, $errorMessage));
 
                 if ($shouldSleep) {
                     usleep(500000);
@@ -142,7 +143,7 @@ class StockService
                     'change_percent' => 'N/A',
                     'volume' => 'N/A',
                     'pe_ratio' => 'N/A',
-                    'error' => $e->getMessage()
+                    'error' => $errorMessage
                 ];
             }
         });
