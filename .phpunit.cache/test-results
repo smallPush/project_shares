@@ -1,1 +1,1 @@
-{"version":2,"defects":{"App\\Tests\\StockServiceTest::testGetPortfolioDataCalculatesProfitability":7},"times":{"App\\Tests\\StockServiceTest::testGetPortfolioDataCalculatesProfitability":0.507}}
+{"version":2,"defects":[],"times":{"App\\Tests\\StockServiceTest::testGetPortfolioDataCalculatesProfitability":1.006}}

@@ -4,13 +4,14 @@ namespace App\Service;
 
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
-use Symfony\Contracts\HttpClient\ResponseInterface;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
 use Psr\Log\LoggerInterface;
 
 class StockService
 {
+    private ?array $portfolioCache = null;
+
     public function __construct(
         private HttpClientInterface $httpClient,
         #[Autowire('%kernel.project_dir%/var/data/portfolio.json')]
@@ -33,22 +34,22 @@ class StockService
      */
     public function getPortfolioSummary(): array
     {
-        if (!file_exists($this->portfolioPath)) {
-            return [
-                'stocks' => [],
-                'grand_total' => 0.0,
-            ];
+        if ($this->portfolioCache === null) {
+            $this->portfolioCache = $this->cache->get('portfolio_data', function (ItemInterface $item) {
+                $item->expiresAfter(300); // Cache for 5 minutes
+
+                if (!file_exists($this->portfolioPath)) {
+                    return [];
+                }
+
+                $json = file_get_contents($this->portfolioPath);
+                $portfolio = json_decode($json, true);
+
+                return is_array($portfolio) ? $portfolio : [];
+            });
         }
 
-        $json = file_get_contents($this->portfolioPath);
-        $portfolio = json_decode($json, true);
-
-        if (!is_array($portfolio)) {
-            return [
-                'stocks' => [],
-                'grand_total' => 0.0,
-            ];
-        }
+        $portfolio = $this->portfolioCache;
 
         $results = [];
         $responses = [];
@@ -60,20 +61,9 @@ class StockService
 
         foreach ($portfolio as $item) {
             $symbol = $item['symbol'];
-            $responses[] = [
-                'item' => $item,
-                'response' => $this->requestStockData($symbol)
-            ];
-        }
-
-        foreach ($responses as $entry) {
-            $item = $entry['item'];
-            $symbol = $item['symbol'];
             $quantity = $item['quantity'];
-            $response = $entry['response'];
             $purchasePrice = $item['purchase_price'] ?? null;
 
-            $data = $this->processStockResponse($symbol, $response);
             $data = $this->fetchStockData($symbol, $shouldSleep);
             
             $totalValue = 0.0;
@@ -102,24 +92,6 @@ class StockService
         ];
     }
 
-    private function requestStockData(string $symbol): ResponseInterface
-    {
-        $url = sprintf(
-            'https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=%s&apikey=%s',
-            $symbol,
-            $this->apiKey
-        );
-        
-        return $this->httpClient->request('GET', $url);
-    }
-
-    private function processStockResponse(string $symbol, ResponseInterface $response): array
-    {
-        try {
-            $content = $response->toArray();
-
-            if (isset($content['Note'])) {
-                throw new \Exception('Alpha Vantage API limit reached: ' . $content['Note']);
     private function fetchStockData(string $symbol, bool $shouldSleep = false): array
     {
         return $this->cache->get('stock_quote_' . $symbol, function (ItemInterface $item) use ($symbol, $shouldSleep) {
