@@ -96,14 +96,15 @@ class StockService
         return $this->cache->get('stock_quote_' . $symbol, function (ItemInterface $item) use ($symbol, $shouldSleep) {
             $item->expiresAfter(300); // Cache for 5 minutes
 
-            $url = sprintf(
-                'https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=%s&apikey=%s',
-                $symbol,
-                $this->apiKey
-            );
-
             try {
-                $response = $this->httpClient->request('GET', $url);
+                $response = $this->httpClient->request('GET', 'https://www.alphavantage.co/query', [
+                    'query' => [
+                        'function' => 'GLOBAL_QUOTE',
+                        'symbol' => $symbol,
+                        'apikey' => $this->apiKey,
+                    ],
+                ]);
+
                 $content = $response->toArray();
 
                 if (isset($content['Note'])) {
