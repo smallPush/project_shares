@@ -52,7 +52,6 @@ class StockService
         $portfolio = $this->portfolioCache;
 
         $results = [];
-        $responses = [];
         $grandTotal = 0.0;
 
         // Alpha Vantage Free Tier rate limit: 5 requests per minute.
