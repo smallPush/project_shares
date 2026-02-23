@@ -51,30 +51,88 @@ class StockService
         }
 
         $results = [];
-        $responses = [];
         $grandTotal = 0.0;
+        $stockDataBySymbol = [];
+        $symbolsToFetch = [];
 
-        // Alpha Vantage Free Tier rate limit: 5 requests per minute.
-        // We determine if we need to sleep to avoid hitting the limit.
-        $shouldSleep = ($this->apiKey === 'demo' || count($portfolio) > 1);
-
+        // 1. Check cache for all symbols
         foreach ($portfolio as $item) {
             $symbol = $item['symbol'];
-            $responses[] = [
-                'item' => $item,
-                'response' => $this->requestStockData($symbol)
-            ];
+            // We use get() to check the cache. If it's a miss, it will return null.
+            // Note: Symfony Cache will cache this null value. We will delete it before
+            // storing the real data later to avoid the "broken cache" issue.
+            $data = $this->cache->get('stock_quote_' . $symbol, function (ItemInterface $item) {
+                return null;
+            });
+
+            if ($data === null) {
+                $symbolsToFetch[] = $symbol;
+            } else {
+                $stockDataBySymbol[$symbol] = $data;
+            }
         }
 
-        foreach ($responses as $entry) {
-            $item = $entry['item'];
+        // 2. Fetch missing symbols in parallel batches to respect rate limits
+        if (!empty($symbolsToFetch)) {
+            // Unique symbols only to avoid redundant requests for the same stock in a portfolio
+            $uniqueSymbols = array_unique($symbolsToFetch);
+
+            // Alpha Vantage Free Tier: 5 requests per minute.
+            // We batch them to allow some parallelism while providing a delay between batches.
+            $batchSize = 5;
+            $chunks = array_chunk($uniqueSymbols, $batchSize);
+
+            foreach ($chunks as $index => $batch) {
+                // If we have multiple batches, we wait between them.
+                // 2 seconds is a compromise between speed and rate-limit safety.
+                if ($index > 0) {
+                    usleep(2000000);
+                }
+
+                $batchResponses = [];
+                $symbolMap = new \SplObjectStorage();
+
+                foreach ($batch as $symbol) {
+                    $response = $this->requestStockData($symbol);
+                    $batchResponses[] = $response;
+                    $symbolMap[$response] = $symbol;
+                }
+
+                foreach ($this->httpClient->stream($batchResponses) as $response => $chunk) {
+                    if ($chunk->isLast()) {
+                        $symbol = $symbolMap[$response];
+                        $data = $this->processStockResponse($symbol, $response);
+
+                        // If we successfully got data, we store it in cache.
+                        if ($data['error'] === null) {
+                            // Important: delete the 'null' cached during the check phase
+                            $this->cache->delete('stock_quote_' . $symbol);
+
+                            $this->cache->get('stock_quote_' . $symbol, function (ItemInterface $item) use ($data) {
+                                $item->expiresAfter(300); // 5 minutes
+                                return $data;
+                            });
+                        }
+
+                        $stockDataBySymbol[$symbol] = $data;
+                    }
+                }
+            }
+        }
+
+        // 3. Assemble final results and calculate totals
+        foreach ($portfolio as $item) {
             $symbol = $item['symbol'];
             $quantity = $item['quantity'];
-            $response = $entry['response'];
             $purchasePrice = $item['purchase_price'] ?? null;
 
-            $data = $this->processStockResponse($symbol, $response);
-            $data = $this->fetchStockData($symbol, $shouldSleep);
+            $data = $stockDataBySymbol[$symbol] ?? [
+                'price' => null,
+                'change_percent' => 'N/A',
+                'volume' => 'N/A',
+                'pe_ratio' => 'N/A',
+                'error' => 'Data not found'
+            ];
             
             $totalValue = 0.0;
             if ($data['price'] !== null) {
@@ -86,13 +144,15 @@ class StockService
                 $profitability = $totalValue - ($purchasePrice * $quantity);
             }
 
-            $data['symbol'] = $symbol;
-            $data['quantity'] = $quantity;
-            $data['purchase_price'] = $purchasePrice;
-            $data['total_value'] = $totalValue;
-            $data['profitability'] = $profitability;
+            // Create result array including portfolio-specific data
+            $result = $data;
+            $result['symbol'] = $symbol;
+            $result['quantity'] = $quantity;
+            $result['purchase_price'] = $purchasePrice;
+            $result['total_value'] = $totalValue;
+            $result['profitability'] = $profitability;
 
-            $results[] = $data;
+            $results[] = $result;
             $grandTotal += $totalValue;
         }
 
@@ -116,64 +176,35 @@ class StockService
     private function processStockResponse(string $symbol, ResponseInterface $response): array
     {
         try {
+            // toArray() will throw if the response is not 2xx or if JSON is invalid
             $content = $response->toArray();
 
             if (isset($content['Note'])) {
                 throw new \Exception('Alpha Vantage API limit reached: ' . $content['Note']);
-    private function fetchStockData(string $symbol, bool $shouldSleep = false): array
-    {
-        return $this->cache->get('stock_quote_' . $symbol, function (ItemInterface $item) use ($symbol, $shouldSleep) {
-            $item->expiresAfter(300); // Cache for 5 minutes
-
-            $url = sprintf(
-                'https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=%s&apikey=%s',
-                $symbol,
-                $this->apiKey
-            );
-
-            try {
-                $response = $this->httpClient->request('GET', $url);
-                $content = $response->toArray();
-
-                if (isset($content['Note'])) {
-                    throw new \Exception('Alpha Vantage API limit reached: ' . $content['Note']);
-                }
-
-                if (!isset($content['Global Quote']) || empty($content['Global Quote'])) {
-                    throw new \Exception('No data found for symbol: ' . $symbol);
-                }
-
-                $quote = $content['Global Quote'];
-
-                $result = [
-                    'price' => (float) ($quote['05. price'] ?? 0),
-                    'change_percent' => $quote['10. change percent'] ?? 'N/A',
-                    'volume' => $quote['06. volume'] ?? 'N/A',
-                    'pe_ratio' => 'N/A', // GLOBAL_QUOTE doesn't provide PER
-                    'error' => null
-                ];
-
-                if ($shouldSleep) {
-                    usleep(500000);
-                }
-
-                return $result;
-
-            } catch (\Exception $e) {
-                $this->logger->error(sprintf('Alpha Vantage Error (%s): %s', $symbol, $e->getMessage()));
-
-                if ($shouldSleep) {
-                    usleep(500000);
-                }
-
-                return [
-                    'price' => null,
-                    'change_percent' => 'N/A',
-                    'volume' => 'N/A',
-                    'pe_ratio' => 'N/A',
-                    'error' => $e->getMessage()
-                ];
             }
-        });
+
+            if (!isset($content['Global Quote']) || empty($content['Global Quote'])) {
+                throw new \Exception('No data found for symbol: ' . $symbol);
+            }
+
+            $quote = $content['Global Quote'];
+
+            return [
+                'price' => (float) ($quote['05. price'] ?? 0),
+                'change_percent' => $quote['10. change percent'] ?? 'N/A',
+                'volume' => $quote['06. volume'] ?? 'N/A',
+                'pe_ratio' => 'N/A', // GLOBAL_QUOTE doesn't provide PER
+                'error' => null
+            ];
+        } catch (\Exception $e) {
+            $this->logger->error(sprintf('Alpha Vantage Error (%s): %s', $symbol, $e->getMessage()));
+            return [
+                'price' => null,
+                'change_percent' => 'N/A',
+                'volume' => 'N/A',
+                'pe_ratio' => 'N/A',
+                'error' => $e->getMessage()
+            ];
+        }
     }
 }
