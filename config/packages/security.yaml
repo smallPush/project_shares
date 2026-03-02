@@ -8,7 +8,7 @@ security:
         users_in_memory:
             memory:
                 users:
-                    admin: { password: '$2y$10$NC.Wvsq8ljRcmoNbJmgdw.2n6feAqv2MhQghC6v2fP3XTNjbDSNcS', roles: [ 'ROLE_USER' ] }
+                    admin: { password: '%env(ADMIN_PASSWORD)%', roles: [ 'ROLE_USER' ] }
 
     firewalls:
         dev:
