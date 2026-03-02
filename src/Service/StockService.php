@@ -4,6 +4,7 @@ namespace App\Service;
 
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
+use Symfony\Contracts\HttpClient\ResponseInterface;
 use Symfony\Contracts\Cache\CacheInterface;
 use Symfony\Contracts\Cache\ItemInterface;
 use Psr\Log\LoggerInterface;
@@ -58,12 +59,58 @@ class StockService
         // We determine if we need to sleep to avoid hitting the limit.
         $shouldSleep = ($this->apiKey === 'demo' || count($portfolio) > 1);
 
+        $stockData = [];
+        $responses = [];
+
+        foreach ($portfolio as $item) {
+            $symbol = $item['symbol'];
+            if (isset($stockData[$symbol]) || isset($responses[$symbol])) {
+                continue;
+            }
+
+            $cacheKey = 'stock_quote_' . $symbol;
+            $data = $this->cache->get($cacheKey, function (ItemInterface $item) {
+                // Return a special value to indicate a miss
+                return '__CACHE_MISS__';
+            });
+
+            if ($data === '__CACHE_MISS__') {
+                $this->cache->delete($cacheKey);
+                $responses[$symbol] = $this->httpClient->request('GET', 'https://www.alphavantage.co/query', [
+                    'query' => [
+                        'function' => 'GLOBAL_QUOTE',
+                        'symbol' => $symbol,
+                        'apikey' => $this->apiKey,
+                    ],
+                ]);
+
+                // Throttling: if we are in demo mode or have multiple stocks, we wait between initiating requests.
+                // This ensures we don't burst the API too quickly, satisfying rate limits.
+                if ($shouldSleep) {
+                    usleep(500000);
+                }
+            } else {
+                $stockData[$symbol] = $data;
+            }
+        }
+
+        foreach ($responses as $symbol => $response) {
+            $data = $this->parseResponse($symbol, $response);
+
+            $this->cache->get('stock_quote_' . $symbol, function (ItemInterface $item) use ($data) {
+                $item->expiresAfter(300);
+                return $data;
+            });
+
+            $stockData[$symbol] = $data;
+        }
+
         foreach ($portfolio as $item) {
             $symbol = $item['symbol'];
             $quantity = $item['quantity'];
             $purchasePrice = $item['purchase_price'] ?? null;
 
-            $data = $this->fetchStockData($symbol, $shouldSleep);
+            $data = $stockData[$symbol];
 
             $totalValue = 0.0;
             if ($data['price'] !== null) {
@@ -91,62 +138,40 @@ class StockService
         ];
     }
 
-    private function fetchStockData(string $symbol, bool $shouldSleep = false): array
+    private function parseResponse(string $symbol, ResponseInterface $response): array
     {
-        return $this->cache->get('stock_quote_' . $symbol, function (ItemInterface $item) use ($symbol, $shouldSleep) {
-            $item->expiresAfter(300); // Cache for 5 minutes
+        try {
+            $content = $response->toArray();
 
-            try {
-                $response = $this->httpClient->request('GET', 'https://www.alphavantage.co/query', [
-                    'query' => [
-                        'function' => 'GLOBAL_QUOTE',
-                        'symbol' => $symbol,
-                        'apikey' => $this->apiKey,
-                    ],
-                ]);
-
-                $content = $response->toArray();
-
-                if (isset($content['Note'])) {
-                    throw new \Exception('Alpha Vantage API limit reached: ' . $content['Note']);
-                }
-
-                if (!isset($content['Global Quote']) || empty($content['Global Quote'])) {
-                    throw new \Exception('No data found for symbol: ' . $symbol);
-                }
-
-                $quote = $content['Global Quote'];
-
-                $result = [
-                    'price' => (float) ($quote['05. price'] ?? 0),
-                    'change_percent' => $quote['10. change percent'] ?? 'N/A',
-                    'volume' => $quote['06. volume'] ?? 'N/A',
-                    'pe_ratio' => 'N/A', // GLOBAL_QUOTE doesn't provide PER
-                    'error' => null
-                ];
-
-                if ($shouldSleep) {
-                    usleep(500000);
-                }
-
-                return $result;
-
-            } catch (\Exception $e) {
-                $errorMessage = str_replace($this->apiKey, '***', $e->getMessage());
-                $this->logger->error(sprintf('Alpha Vantage Error (%s): %s', $symbol, $errorMessage));
-
-                if ($shouldSleep) {
-                    usleep(500000);
-                }
-
-                return [
-                    'price' => null,
-                    'change_percent' => 'N/A',
-                    'volume' => 'N/A',
-                    'pe_ratio' => 'N/A',
-                    'error' => $errorMessage
-                ];
+            if (isset($content['Note'])) {
+                throw new \Exception('Alpha Vantage API limit reached: ' . $content['Note']);
             }
-        });
+
+            if (!isset($content['Global Quote']) || empty($content['Global Quote'])) {
+                throw new \Exception('No data found for symbol: ' . $symbol);
+            }
+
+            $quote = $content['Global Quote'];
+
+            return [
+                'price' => (float) ($quote['05. price'] ?? 0),
+                'change_percent' => $quote['10. change percent'] ?? 'N/A',
+                'volume' => $quote['06. volume'] ?? 'N/A',
+                'pe_ratio' => 'N/A', // GLOBAL_QUOTE doesn't provide PER
+                'error' => null
+            ];
+
+        } catch (\Exception $e) {
+            $errorMessage = str_replace($this->apiKey, '***', $e->getMessage());
+            $this->logger->error(sprintf('Alpha Vantage Error (%s): %s', $symbol, $errorMessage));
+
+            return [
+                'price' => null,
+                'change_percent' => 'N/A',
+                'volume' => 'N/A',
+                'pe_ratio' => 'N/A',
+                'error' => $errorMessage
+            ];
+        }
     }
 }
