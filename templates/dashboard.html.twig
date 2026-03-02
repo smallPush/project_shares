@@ -113,16 +113,14 @@
         </div>
     </div>
     
-    {% if stocks|filter(s => s.error is not null)|length > 0 %}
+    {% if errors|length > 0 %}
     <div class="mt-4">
         <h5>Errors</h5>
         <ul class="list-group">
-            {% for stock in stocks %}
-                {% if stock.error %}
-                    <li class="list-group-item list-group-item-danger">
-                        <strong>{{ stock.symbol }}:</strong> {{ stock.error }}
-                    </li>
-                {% endif %}
+            {% for stock in errors %}
+                <li class="list-group-item list-group-item-danger">
+                    <strong>{{ stock.symbol }}:</strong> {{ stock.error }}
+                </li>
             {% endfor %}
         </ul>
     </div>
