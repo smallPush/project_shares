@@ -58,12 +58,89 @@ class StockService
         // We determine if we need to sleep to avoid hitting the limit.
         $shouldSleep = ($this->apiKey === 'demo' || count($portfolio) > 1);
 
+        $uncachedSymbols = [];
+        foreach ($portfolio as $item) {
+            $symbol = $item['symbol'];
+            $cacheKey = 'stock_quote_' . $symbol;
+
+            // Check for cache miss using a sentinel
+            $sentinel = '__CACHE_MISS__';
+            $cached = $this->cache->get($cacheKey, function () use ($sentinel) {
+                return $sentinel;
+            });
+
+            if ($cached === $sentinel) {
+                $uncachedSymbols[] = $symbol;
+                $this->cache->delete($cacheKey);
+            }
+        }
+
+        $responses = [];
+        $uncachedSymbols = array_unique($uncachedSymbols); // Avoid fetching same symbol multiple times
+        foreach ($uncachedSymbols as $index => $symbol) {
+            if ($shouldSleep && $index > 0) {
+                usleep(500000); // Stagger requests by 500ms
+            }
+
+            // Initiate request concurrently
+            $responses[$symbol] = $this->httpClient->request('GET', 'https://www.alphavantage.co/query', [
+                'query' => [
+                    'function' => 'GLOBAL_QUOTE',
+                    'symbol' => $symbol,
+                    'apikey' => $this->apiKey,
+                ],
+            ]);
+        }
+
+        // Process responses and populate cache
+        foreach ($responses as $symbol => $response) {
+            $cacheKey = 'stock_quote_' . $symbol;
+            // The cache->get here handles populating the cache. We need to actually evaluate it.
+            $this->cache->get($cacheKey, function (ItemInterface $item) use ($symbol, $response, $shouldSleep) {
+                $item->expiresAfter(300); // Cache for 5 minutes
+
+                try {
+                    $content = $response->toArray();
+
+                    if (isset($content['Note'])) {
+                        throw new \Exception('Alpha Vantage API limit reached: ' . $content['Note']);
+                    }
+
+                    if (!isset($content['Global Quote']) || empty($content['Global Quote'])) {
+                        throw new \Exception('No data found for symbol: ' . $symbol);
+                    }
+
+                    $quote = $content['Global Quote'];
+
+                    return [
+                        'price' => (float) ($quote['05. price'] ?? 0),
+                        'change_percent' => $quote['10. change percent'] ?? 'N/A',
+                        'volume' => $quote['06. volume'] ?? 'N/A',
+                        'pe_ratio' => 'N/A',
+                        'error' => null
+                    ];
+                } catch (\Exception $e) {
+                    $errorMessage = str_replace($this->apiKey, '***', $e->getMessage());
+                    $this->logger->error(sprintf('Alpha Vantage Error (%s): %s', $symbol, $errorMessage));
+
+                    return [
+                        'price' => null,
+                        'change_percent' => 'N/A',
+                        'volume' => 'N/A',
+                        'pe_ratio' => 'N/A',
+                        'error' => $errorMessage
+                    ];
+                }
+            });
+        }
+
         foreach ($portfolio as $item) {
             $symbol = $item['symbol'];
             $quantity = $item['quantity'];
             $purchasePrice = $item['purchase_price'] ?? null;
 
-            $data = $this->fetchStockData($symbol, $shouldSleep);
+            // Fetch from cache since we just populated it
+            $data = $this->fetchStockData($symbol, false);
 
             $totalValue = 0.0;
             if ($data['price'] !== null) {
