@@ -16,10 +16,19 @@ class DashboardController extends AbstractController
         $stocks = $portfolioData['stocks'];
         $grandTotal = $portfolioData['grand_total'];
 
+        $errors = array_filter($stocks, fn($stock) => ($stock['error'] ?? null) !== null);
+
         return $this->render('dashboard.html.twig', [
             'stocks' => $stocks,
+            'errors' => $errors,
             'grand_total' => $grandTotal,
             'now' => new \DateTime(),
         ]);
+
+        $response->setPublic();
+        $response->setMaxAge(300);
+        $response->setSharedMaxAge(300);
+
+        return $response;
     }
 }
