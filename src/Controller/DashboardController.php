@@ -24,5 +24,11 @@ class DashboardController extends AbstractController
             'grand_total' => $grandTotal,
             'now' => new \DateTime(),
         ]);
+
+        $response->setPublic();
+        $response->setMaxAge(300);
+        $response->setSharedMaxAge(300);
+
+        return $response;
     }
 }
