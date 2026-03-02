@@ -25,23 +25,52 @@ class PerformanceBenchmarkTest extends TestCase
             ]
         ]);
 
-        // Expect exactly 1 call for 1 item in the optimized code
-        // 1 from fetchStockData (cache miss)
-        $httpClient->expects($this->exactly(1))->method('request')->willReturn($response);
+        // Now it fetches 5 items all at once, so `request` is called 5 times directly in `getPortfolioSummary`
+        $httpClient->expects($this->exactly(5))->method('request')->willReturn($response);
 
-        // Mock Cache to simulate miss
+        // Mock Cache to actually cache the result and only miss on the first hit for each key
         $cache = $this->createMock(CacheInterface::class);
-        $cache->method('get')->willReturnCallback(function ($key, $callback) {
-            $item = $this->createMock(ItemInterface::class);
-            return $callback($item);
+
+        $cacheData = [];
+        $cache->method('get')->willReturnCallback(function ($key, $callback) use (&$cacheData) {
+            if (!array_key_exists($key, $cacheData)) {
+                $item = $this->createMock(ItemInterface::class);
+                $cacheData[$key] = $callback($item);
+            }
+            return $cacheData[$key];
+        });
+
+        $cache->method('delete')->willReturnCallback(function ($key) use (&$cacheData) {
+            unset($cacheData[$key]);
+            return true;
         });
 
         $logger = $this->createMock(LoggerInterface::class);
 
-        // Create temporary portfolio file with 1 item
+        // Create temporary portfolio file with 5 items
         $portfolioData = [
             [
-                'symbol' => 'TEST',
+                'symbol' => 'TEST1',
+                'quantity' => 10,
+                'purchase_price' => 100.00
+            ],
+            [
+                'symbol' => 'TEST2',
+                'quantity' => 10,
+                'purchase_price' => 100.00
+            ],
+            [
+                'symbol' => 'TEST3',
+                'quantity' => 10,
+                'purchase_price' => 100.00
+            ],
+            [
+                'symbol' => 'TEST4',
+                'quantity' => 10,
+                'purchase_price' => 100.00
+            ],
+            [
+                'symbol' => 'TEST5',
                 'quantity' => 10,
                 'purchase_price' => 100.00
             ]
@@ -51,7 +80,10 @@ class PerformanceBenchmarkTest extends TestCase
 
         try {
             $service = new StockService($httpClient, $file, $logger, $cache, 'demo');
+            $startTime = microtime(true);
             $service->getPortfolioSummary();
+            $endTime = microtime(true);
+            echo "\nTime taken for 5 items: " . ($endTime - $startTime) . " seconds\n";
         } finally {
             if (file_exists($file)) {
                 unlink($file);
