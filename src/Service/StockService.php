@@ -54,6 +54,8 @@ class StockService
 
         $results = [];
         $grandTotal = 0.0;
+        $stockDataBySymbol = [];
+        $symbolsToFetch = [];
 
         // Alpha Vantage Free Tier rate limit: 5 requests per minute.
         // We determine if we need to sleep to avoid hitting the limit.
@@ -122,13 +124,15 @@ class StockService
                 $profitability = $totalValue - ($purchasePrice * $quantity);
             }
 
-            $data['symbol'] = $symbol;
-            $data['quantity'] = $quantity;
-            $data['purchase_price'] = $purchasePrice;
-            $data['total_value'] = $totalValue;
-            $data['profitability'] = $profitability;
+            // Create result array including portfolio-specific data
+            $result = $data;
+            $result['symbol'] = $symbol;
+            $result['quantity'] = $quantity;
+            $result['purchase_price'] = $purchasePrice;
+            $result['total_value'] = $totalValue;
+            $result['profitability'] = $profitability;
 
-            $results[] = $data;
+            $results[] = $result;
             $grandTotal += $totalValue;
         }
 
@@ -141,6 +145,7 @@ class StockService
     private function parseResponse(string $symbol, ResponseInterface $response): array
     {
         try {
+            // toArray() will throw if the response is not 2xx or if JSON is invalid
             $content = $response->toArray();
 
             if (isset($content['Note'])) {
