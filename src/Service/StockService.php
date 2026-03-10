@@ -167,7 +167,10 @@ class StockService
             ];
 
         } catch (\Exception $e) {
-            $errorMessage = str_replace($this->apiKey, '***', $e->getMessage());
+            $errorMessage = $e->getMessage();
+            if (!empty($this->apiKey)) {
+                $errorMessage = str_replace($this->apiKey, '***', $errorMessage);
+            }
             $this->logger->error(sprintf('Alpha Vantage Error (%s): %s', $symbol, $errorMessage));
 
             return [
