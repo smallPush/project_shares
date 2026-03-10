@@ -18,7 +18,7 @@ class DashboardController extends AbstractController
 
         $errors = array_filter($stocks, fn($stock) => ($stock['error'] ?? null) !== null);
 
-        return $this->render('dashboard.html.twig', [
+        $response = $this->render('dashboard.html.twig', [
             'stocks' => $stocks,
             'errors' => $errors,
             'grand_total' => $grandTotal,
